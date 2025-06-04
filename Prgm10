@@ -1,0 +1,54 @@
+import torch, torch.nn as nn, torch.optim as optim
+
+# Prepare character-level data
+text = "hello world, this is a simple text generation using LSTMs."
+chars = sorted(set(text))
+
+char2idx = {c: i for i, c in enumerate(chars)}
+idx2char = {i: c for c, i in char2idx.items()}
+seq_len = 10
+
+# Create input-output sequences
+X = [[char2idx[c] for c in text[i:i+seq_len]] for i in range(len(text) - seq_len)]
+Y = [char2idx[text[i+seq_len]] for i in range(len(text) - seq_len)]
+
+X, Y = torch.tensor(X), torch.tensor(Y)
+
+# Define LSTM model
+class TextLSTM(nn.Module):
+    def __init__(self, vocab_size, embed_size, hidden_size):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, embed_size)
+        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, x):
+        x, _ = self.lstm(self.embed(x))
+        return self.fc(x[:, -1])
+
+# Model, loss, optimizer
+vocab_size, embed_size, hidden_size = len(chars), 16, 128
+model = TextLSTM(vocab_size, embed_size, hidden_size)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+# Training loop
+for epoch in range(50):
+    optimizer.zero_grad()
+    loss = criterion(model(X), Y)
+    loss.backward()
+    optimizer.step()
+
+
+def generate(start, length=50):
+    seq = [char2idx[c] for c in start]
+    result = start
+    for _ in range(length):
+        inp = torch.tensor([seq])
+        pred = model(inp).argmax(dim=1).item()
+        result += idx2char[pred]
+        seq = seq[1:] + [pred]
+    return result
+
+# Output
+print("\n\nGenerated Text:\n\n", generate("hello wor", 50))
